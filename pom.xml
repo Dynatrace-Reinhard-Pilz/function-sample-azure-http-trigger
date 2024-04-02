@@ -32,14 +32,11 @@
 		<functionPricingTier>EP1</functionPricingTier>
 	</properties>
 	<dependencies>
-	
-<dependency>
-    <groupId>io.opentelemetry</groupId>
-    <artifactId>opentelemetry-api</artifactId>
-    <version>1.36.0</version>
-</dependency>
-	
-
+		<dependency>
+		    <groupId>io.opentelemetry</groupId>
+		    <artifactId>opentelemetry-api</artifactId>
+		    <version>1.36.0</version>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-function-adapter-azure</artifactId>

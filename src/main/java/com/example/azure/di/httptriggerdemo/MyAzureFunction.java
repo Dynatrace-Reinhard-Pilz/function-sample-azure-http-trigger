@@ -65,8 +65,11 @@ public class MyAzureFunction {
 			HttpMethod.POST }, authLevel = AuthorizationLevel.ANONYMOUS) HttpRequestMessage<Optional<String>> request,
 			ExecutionContext context) {
 
-		Span span = tracer.spanBuilder("bean-request").setSpanKind(SpanKind.SERVER).startSpan();
-		try (Scope scope = span.makeCurrent()) {
+		Span span = tracer.spanBuilder(request.getUri().getPath()).setSpanKind(SpanKind.SERVER).startSpan();
+		try (Scope scope = span.makeCurrent()) {			
+			span.setAttribute("url.full", request.getUri().toString());
+			span.setAttribute("http.request.method", request.getHttpMethod().name());
+			span.setAttribute("http.response.status_code", 200);			
 			return echo.andThen(uppercase).apply(request.getBody().get());
 		} finally {
 			span.end();
@@ -78,10 +81,18 @@ public class MyAzureFunction {
 			HttpMethod.POST }, authLevel = AuthorizationLevel.ANONYMOUS) HttpRequestMessage<Optional<String>> request,
 			ExecutionContext context) {
 
-		// Use SCF composition. Composed functions are not just spring beans but SCF
-		// such.
-		Function<String, String> composed = this.functionCatalog.lookup("echo|reverse|uppercase");
-
-		return (String) composed.apply(request.getBody().get());
+		Span span = tracer.spanBuilder(request.getUri().getPath()).setSpanKind(SpanKind.SERVER).startSpan();
+		try (Scope scope = span.makeCurrent()) {			
+			span.setAttribute("url.full", request.getUri().toString());
+			span.setAttribute("http.request.method", request.getHttpMethod().name());
+			span.setAttribute("http.response.status_code", 200);			
+			// Use SCF composition. Composed functions are not just spring beans but SCF
+			// such.
+			Function<String, String> composed = this.functionCatalog.lookup("echo|reverse|uppercase");
+			return (String) composed.apply(request.getBody().get());
+		} finally {
+			span.end();
+		}
+		
 	}
 }
