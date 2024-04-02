@@ -19,6 +19,10 @@ package com.example.azure.di.httptriggerdemo;
 import java.util.Optional;
 import java.util.function.Function;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.function.context.FunctionCatalog;
+import org.springframework.stereotype.Component;
+
 import com.microsoft.azure.functions.ExecutionContext;
 import com.microsoft.azure.functions.HttpMethod;
 import com.microsoft.azure.functions.HttpRequestMessage;
@@ -26,53 +30,58 @@ import com.microsoft.azure.functions.annotation.AuthorizationLevel;
 import com.microsoft.azure.functions.annotation.FunctionName;
 import com.microsoft.azure.functions.annotation.HttpTrigger;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cloud.function.context.FunctionCatalog;
-import org.springframework.stereotype.Component;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanBuilder;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 
 @Component
 public class MyAzureFunction {
 
-    /**
-     * Plain Spring bean (not Spring Cloud Functions!)
-     */
-    @Autowired
-    private Function<String, String> echo;
+	private final static Tracer tracer = GlobalOpenTelemetry.get().getTracer("dynatrace-test", "1.0.0");
 
-    /**
-     * Plain Spring bean (not Spring Cloud Functions!)
-     */
-    @Autowired
-    private Function<String, String> uppercase;
+	/**
+	 * Plain Spring bean (not Spring Cloud Functions!)
+	 */
+	@Autowired
+	private Function<String, String> echo;
 
-    /**
-     * The FunctionCatalog leverages the Spring Cloud Function framework.
-     */
-    @Autowired
-    private FunctionCatalog functionCatalog;
+	/**
+	 * Plain Spring bean (not Spring Cloud Functions!)
+	 */
+	@Autowired
+	private Function<String, String> uppercase;
 
-    @FunctionName("bean")
-    public String plainBeans(
-    		@HttpTrigger(
-    				name = "req",
-    				methods = {HttpMethod.POST},
-    				authLevel = AuthorizationLevel.ANONYMOUS
-    		) HttpRequestMessage<Optional<String>> request,
-            ExecutionContext context
-    ) {
+	/**
+	 * The FunctionCatalog leverages the Spring Cloud Function framework.
+	 */
+	@Autowired
+	private FunctionCatalog functionCatalog;
 
-        return echo.andThen(uppercase).apply(request.getBody().get());
-    }
+	@FunctionName("bean")
+	public String plainBeans(@HttpTrigger(name = "req", methods = {
+			HttpMethod.POST }, authLevel = AuthorizationLevel.ANONYMOUS) HttpRequestMessage<Optional<String>> request,
+			ExecutionContext context) {
 
-    @FunctionName("scf")
-    public String springCloudFunction(
-            @HttpTrigger(name = "req", methods = {
-                    HttpMethod.POST }, authLevel = AuthorizationLevel.ANONYMOUS) HttpRequestMessage<Optional<String>> request,
-            ExecutionContext context) {
+		Span span = tracer.spanBuilder("bean-request").setSpanKind(SpanKind.SERVER).startSpan();
+		try (Scope scope = span.makeCurrent()) {
+			return echo.andThen(uppercase).apply(request.getBody().get());
+		} finally {
+			span.end();
+		}
+	}
 
-        // Use SCF composition. Composed functions are not just spring beans but SCF such.
-        Function<String, String> composed = this.functionCatalog.lookup("echo|reverse|uppercase");
+	@FunctionName("scf")
+	public String springCloudFunction(@HttpTrigger(name = "req", methods = {
+			HttpMethod.POST }, authLevel = AuthorizationLevel.ANONYMOUS) HttpRequestMessage<Optional<String>> request,
+			ExecutionContext context) {
 
-        return (String) composed.apply(request.getBody().get());
-    }
+		// Use SCF composition. Composed functions are not just spring beans but SCF
+		// such.
+		Function<String, String> composed = this.functionCatalog.lookup("echo|reverse|uppercase");
+
+		return (String) composed.apply(request.getBody().get());
+	}
 }
